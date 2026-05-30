@@ -170,6 +170,29 @@ private:
     exec::RiskLimits _limits[Config::kSymbols];
 };
 
+namespace ouch {
+#pragma pack(push, 1)
+struct EnterOrderMsg {
+    uint8_t  msg_type;           // 'O'
+    uint32_t order_token;        // Big endian
+    uint8_t  buy_sell_indicator; // 'B' or 'S'
+    uint32_t shares;             // Big endian
+    char     stock[8];           // ASCII
+    uint32_t price;              // Big endian
+    uint32_t time_in_force;      // Big endian
+    char     firm[4];            // ASCII
+    uint8_t  display;
+    uint8_t  capacity;
+    uint8_t  intermarket_sweep;
+    uint32_t min_quantity;       // Big endian
+    uint8_t  cross_type;
+    uint8_t  customer_type;
+    uint8_t  reserved[9];
+};
+#pragma pack(pop)
+static_assert(sizeof(EnterOrderMsg) == 48, "EnterOrderMsg must be strictly packed");
+}
+
 class OuchPacketTemplates {
 public:
     [[nodiscard]] bool init() noexcept {
@@ -190,15 +213,15 @@ public:
 
         const uint8_t side = intent.side & 1u;
         const auto& tmpl = _templates[intent.symbol_idx][side];
+
+        // Zero-allocation template injection: use struct pointer assignment for the dynamic fields
         std::memcpy(out.bytes, tmpl.data(), exec::ouch::kEnterOrderLen);
         out.len = exec::ouch::kEnterOrderLen;
 
-        exec::store_u32_be(out.bytes + exec::ouch::kTokenOffset,
-                           intent.client_order_id);
-        exec::store_u32_be(out.bytes + exec::ouch::kQtyOffset,
-                           exec::clamp_u32(intent.qty));
-        exec::store_u32_be(out.bytes + exec::ouch::kPriceOffset,
-                           exec::clamp_u32(intent.price));
+        ouch::EnterOrderMsg* msg = reinterpret_cast<ouch::EnterOrderMsg*>(out.bytes);
+        msg->order_token = __builtin_bswap32(intent.client_order_id);
+        msg->shares = __builtin_bswap32(exec::clamp_u32(intent.qty));
+        msg->price = __builtin_bswap32(exec::clamp_u32(intent.price));
         return true;
     }
 
