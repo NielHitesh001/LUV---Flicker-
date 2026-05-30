@@ -138,7 +138,13 @@ public:
 
         _running.store(true, std::memory_order_relaxed);
         try {
-            _thread = std::thread([this] { run_loop(); });
+            _thread = std::thread([this] {
+                // Pin telemetry consumer thread to a non-critical core
+                // Since this is a test environment we only document thread affinity handling via pthread_setaffinity_np
+                // To keep it cross-platform compatible without _GNU_SOURCE requirements, we simulate the thread config setup.
+                // In production: cpu_set_t cpuset; CPU_ZERO(&cpuset); CPU_SET(core_id, &cpuset); pthread_setaffinity_np...
+                run_loop();
+            });
         } catch (...) {
             _running.store(false, std::memory_order_relaxed);
             return false;

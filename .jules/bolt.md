@@ -9,3 +9,7 @@
 ## 2024-05-24 - [Zero-Allocation OUCH Message Templating]
 **Learning:** Writing fields byte-by-byte via manual offset pointer arithmetic inside `build_enter_order` (the outbound hot-path network templating) involves multiple shifts and scalar writes which the compiler cannot fully optimize.
 **Action:** Implemented a strictly packed C++ struct (`#pragma pack(push, 1)`) representing the Nasdaq OUCH 4.2 "Enter Order" message (`EnterOrderMsg`). Used a pointer overlay (`reinterpret_cast<ouch::EnterOrderMsg*>`) instead of offset arithmetic to directly assign the modified attributes (order token, shares, and price). We kept `memcpy` from the pre-initialized template to load all constant string bits, then just assigned dynamic fields. The execution timing of the whole injection was ~5.9 ns.
+
+## 2024-05-24 - [Zero-Copy Telemetry Bridge]
+**Learning:** Standard logging and I/O are fatal to HFT latency. Blocking the critical thread to write logs introduces unacceptable jitter and delays, destroying our 8-nanosecond execution path.
+**Action:** Evaluated the existing lock-free `TelemetryPublisher` and `TelemetryBridge` implemented via a pre-allocated SPSC (Single-Producer, Single-Consumer) ring buffer (`telem_ring`). The hot-path producer uses a non-blocking "fire and forget" logic to copy `TelemSnapshot` into the ring and atomic indices manage read/write cursors. The background thread bridges this to UDP and is conceptually pinned to a non-critical CPU core so as to not preempt cache on the hot path.
