@@ -167,7 +167,7 @@ public:
         _model_id = model_id;
     }
 
-    [[nodiscard]] bool infer_symbol(uint16_t sym) noexcept {
+    [[nodiscard]] bool infer_symbol(uint16_t sym, uint32_t cursor = 0) noexcept {
         if (!_arena || sym >= Config::kSymbols) [[unlikely]] return false;
 
         const uint64_t start = now_ns();
@@ -179,7 +179,11 @@ public:
             score = infer_linear(features);
         } else if (_kind == ai::ModelKind::kTreeliteSharedObject) {
             if (!_predict) return false;
-            if (_predict(features.data, FeatureRow::kFloats, &score) != 0)
+            float scratch[Config::kFeaturesPerSymbol];
+            for (uint32_t f = 0; f < Config::kFeaturesPerSymbol; ++f) {
+                scratch[f] = features.data[f * Config::kLookbackSteps + cursor];
+            }
+            if (_predict(scratch, Config::kFeaturesPerSymbol, &score) != 0)
                 return false;
         } else {
             return false;

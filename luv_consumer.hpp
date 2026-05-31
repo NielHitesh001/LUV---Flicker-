@@ -57,7 +57,10 @@ public:
 
         _lob.process(*tick);
         _features.update(tick->symbol_idx, *tick);
-        if (_ai) (void)_ai->infer_symbol(tick->symbol_idx);
+        if (_ai) {
+            uint32_t latest_idx = (_features.current_cursor(tick->symbol_idx) + feat::kLookback - 1) & feat::kLookbackMask;
+            (void)_ai->infer_symbol(tick->symbol_idx, latest_idx);
+        }
         _arena->tick_ring.consume();
         ++_tick_count;
         return true;
