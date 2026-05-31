@@ -13,3 +13,7 @@
 ## 2024-05-24 - [Zero-Copy Telemetry Bridge]
 **Learning:** Standard logging and I/O are fatal to HFT latency. Blocking the critical thread to write logs introduces unacceptable jitter and delays, destroying our 8-nanosecond execution path.
 **Action:** Evaluated the existing lock-free `TelemetryPublisher` and `TelemetryBridge` implemented via a pre-allocated SPSC (Single-Producer, Single-Consumer) ring buffer (`telem_ring`). The hot-path producer uses a non-blocking "fire and forget" logic to copy `TelemSnapshot` into the ring and atomic indices manage read/write cursors. The background thread bridges this to UDP and is conceptually pinned to a non-critical CPU core so as to not preempt cache on the hot path.
+
+## 2024-05-24 - [The Orchestrator & Core Isolation (main.cpp)]
+**Learning:** For a real HFT engine running in <10 nanoseconds, the OS must not context switch the main execution thread. The Linux kernel scheduler can preempt user-space threads unpredictably, destroying performance guarantees.
+**Action:** Wrote `main.cpp` enforcing `pthread_setaffinity_np` to pin the hot path to a specific CPU core, removing it from OS migration pools. Utilized `SCHED_FIFO` real-time scheduling priority so the thread is never preempted. Pinned the background telemetry thread to a separate non-critical CPU core so UDP serialization does not contend with the execution path's cache.
