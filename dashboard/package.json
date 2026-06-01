@@ -1,0 +1,13 @@
+{
+  "name": "luv-dashboard",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "cd server && npm install && cd ../client && npm install",
+    "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "mock": "concurrently \"npm run mock --prefix server\" \"npm run dev --prefix client\"",
+    "build": "npm run build --prefix client"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

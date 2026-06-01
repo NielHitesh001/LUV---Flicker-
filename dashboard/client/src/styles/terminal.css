@@ -1,0 +1,182 @@
+:root {
+  --bg-primary:    #0a0a0a;   /* near-black base */
+  --bg-panel:      #111111;   /* panel background */
+  --bg-highlight:  #1a1a1a;   /* hover / active rows */
+  --border:        #2a2a2a;   /* panel dividers */
+  --text-primary:  #e8e0cc;   /* warm white — Bloomberg amber-white */
+  --text-dim:      #666655;   /* muted labels */
+  --green:         #00cc66;   /* positive PnL, fills */
+  --red:           #ff3333;   /* negative PnL, rejects, halt */
+  --amber:         #ffaa00;   /* warnings, near-limit */
+  --blue:          #4488ff;   /* neutral highlights */
+  --font-mono:     'JetBrains Mono', 'Consolas', monospace;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.dashboard-container {
+  display: grid;
+  grid-template-rows: 40px 1fr 1fr;
+  grid-template-columns: 3fr 2fr;
+  height: 100vh;
+  gap: 1px;
+  background-color: var(--border);
+  position: relative;
+  overflow: hidden;
+}
+
+.panel {
+  background-color: var(--bg-panel);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-header {
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+.header-bar {
+  grid-column: 1 / -1;
+  background-color: var(--bg-panel);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 15px;
+  font-weight: bold;
+}
+
+.header-bar.halted {
+  background-color: var(--red);
+  color: #000;
+  animation: flash 0.5s infinite alternate;
+}
+
+@keyframes flash {
+  0% { background-color: var(--red); }
+  100% { background-color: var(--bg-primary); color: var(--red); }
+}
+
+.header-stats {
+  display: flex;
+  gap: 20px;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+.status-dot.live {
+  background-color: var(--green);
+  animation: pulse 1s infinite alternate;
+}
+
+.status-dot.dead {
+  background-color: var(--red);
+}
+
+@keyframes pulse {
+  from { opacity: 0.4; }
+  to { opacity: 1; }
+}
+
+.chart-area {
+  grid-column: 1 / 2;
+  grid-row: 2 / 3;
+}
+
+.lob-area {
+  grid-column: 2 / 3;
+  grid-row: 2 / 3;
+}
+
+.bottom-area {
+  grid-column: 1 / -1;
+  grid-row: 3 / 4;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1px;
+  background-color: var(--border);
+}
+
+.bottom-panel {
+  background-color: var(--bg-panel);
+  padding: 10px;
+}
+
+.data-val {
+  font-size: 24px;
+  color: var(--text-primary);
+}
+
+.data-val.green { color: var(--green); }
+.data-val.red { color: var(--red); }
+.data-val.amber { color: var(--amber); }
+
+.bar-container {
+  width: 100%;
+  height: 20px;
+  background-color: var(--bg-highlight);
+  margin-top: 5px;
+  border: 1px solid var(--border);
+}
+
+.bar-fill {
+  height: 100%;
+  transition: width 0.1s linear;
+}
+
+.feed-lost-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(10, 10, 10, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.feed-lost-box {
+  border: 2px solid var(--red);
+  background: var(--bg-panel);
+  padding: 30px;
+  text-align: center;
+  box-shadow: 0 0 20px rgba(255, 51, 51, 0.2);
+}
+
+.feed-lost-title {
+  color: var(--red);
+  font-size: 20px;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.feed-lost-desc {
+  color: var(--text-dim);
+}
+
+.flex-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
