@@ -449,42 +449,16 @@ private:
     //  Linear scan through active levels to find one with a matching price.
     //  Returns the level index, or -1 if not found.
     //
-    //  Levels are sorted (bids descending, asks ascending), so we use
-    //  binary search to find the correct level in O(log N) time, which
-    //  improves performance significantly for deep books.
+    //  Since levels are sorted, we could binary search — but the number of
+    //  active levels is typically small (tens, not thousands), and linear
+    //  scan is cache-friendly on the contiguous PriceLevel array.
     [[nodiscard]] int32_t find_level(uint16_t sym, uint8_t side,
                                      int64_t price) const noexcept
     {
         const uint16_t count = level_count(sym, side);
-        if (count == 0) return -1;
-
-        int32_t low = 0;
-        int32_t high = static_cast<int32_t>(count) - 1;
-
-        if (side == 0) {
-            // Bids: descending order
-            while (low <= high) {
-                const int32_t mid = low + (high - low) / 2;
-                const int64_t mp = _arena->level(sym, side, static_cast<uint16_t>(mid)).price;
-                if (mp == price) return mid;
-                if (mp < price) {
-                    high = mid - 1;
-                } else {
-                    low = mid + 1;
-                }
-            }
-        } else {
-            // Asks: ascending order
-            while (low <= high) {
-                const int32_t mid = low + (high - low) / 2;
-                const int64_t mp = _arena->level(sym, side, static_cast<uint16_t>(mid)).price;
-                if (mp == price) return mid;
-                if (mp > price) {
-                    high = mid - 1;
-                } else {
-                    low = mid + 1;
-                }
-            }
+        for (uint16_t i = 0; i < count; ++i) {
+            if (_arena->level(sym, side, i).price == price)
+                return static_cast<int32_t>(i);
         }
         return -1;
     }
