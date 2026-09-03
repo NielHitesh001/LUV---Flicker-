@@ -53,6 +53,24 @@ An optional compatible linear model activates inference and may generate simulat
 - `luv_consumer.hpp` — strategy-side orchestration and bounded packet SPSC queue.
 - `main_engine.cpp` — safe, simulation-only end-to-end topology.
 
+## AI component
+
+`luv_ai.hpp` is an optional inference adapter, not a training pipeline or a
+claim of predictive performance. It can map a versioned linear-model artifact
+or bind a compatible Treelite/TL2cgen predictor, read the feature row for each
+symbol, and write a directional `SignalOutput`. The simulation engine uses a
+non-flat signal only as an input to pre-trade risk and packet construction.
+Model artifacts are trusted local inputs; do not load an unreviewed shared
+object because dynamic predictors execute native code.
+
+## Performance expectations
+
+The design avoids heap allocation in the hot path and uses bounded SPSC queues,
+but this repository makes no portable latency or throughput guarantee. Track
+decode rate, queue high-water marks, risk-evaluation latency, and p99/p99.9
+end-to-end latency on the target CPU, operating system, NIC, and compiler
+configuration before making any deployment decision.
+
 ## Tests
 
 The CMake targets include arena, feed, LOB, execution, AI/telemetry, and stress tests. Performance figures depend on hardware, compiler, memory configuration, and operating-system scheduling; measure them on the deployment platform rather than treating repository claims as guarantees.

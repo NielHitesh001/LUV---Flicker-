@@ -1,0 +1,22 @@
+# CMake build output
+/build/
+/cmake-build-*/
+/CMakeCache.txt
+/CMakeFiles/
+/CTestTestfile.cmake
+/Testing/
+/compile_commands.json
+
+# Locally compiled test executables
+/test_arena
+/test_lob
+/test_feed
+/test_execution
+/test_stress
+/test_ai_telemetry
+
+# Unused Node.js scaffolding and local editor metadata
+/node_modules/
+/package.json
+/package-lock.json
+.DS_Store
