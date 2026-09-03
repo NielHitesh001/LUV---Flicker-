@@ -106,6 +106,17 @@ static void test_decode_itch() {
 
     printf("  [OK] Add Order decode — all fields verified\n");
 
+       msg[23] = 0;
+       assert(!luv::decode_itch(msg, 36, tab, out));
+       msg[23] = 100;
+       msg[19] = 'X';
+       assert(!luv::decode_itch(msg, 36, tab, out));
+       msg[19] = 'B';
+       msg[5] = 0xFF; msg[6] = 0xFF; msg[7] = 0xFF;
+       msg[8] = 0xFF; msg[9] = 0xFF; msg[10] = 0xFF;
+       assert(!luv::decode_itch(msg, 36, tab, out));
+       printf("  [OK] malformed quantity/side/timestamp rejected\n");
+
     // Test skip on unknown message type
     uint8_t unk[11] = {};
     unk[0] = 'Z';  // unknown type

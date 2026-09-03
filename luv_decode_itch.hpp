@@ -137,7 +137,8 @@ public:
     //  idx:    the symbol index to associate (must be < Config::kSymbols)
     //  Returns true on success, false if table is full.
     [[nodiscard]] bool insert(const void* ticker, uint16_t idx) noexcept {
-        if (_count >= kCapacity / 2) return false;  // load factor > 0.5
+        if (!ticker || idx >= Config::kSymbols || _count >= kCapacity / 2)
+            return false;  // keep probe chains bounded
 
         const uint64_t key = detail::load_ticker_key(ticker);
         uint32_t slot = hash(key);
@@ -164,16 +165,18 @@ public:
 
         // Open-addressing linear probe.  At load ≤ 0.5 the expected number
         // of probes is < 1.5 — typically a single iteration.
-        while (true) {
+        for (uint32_t probed = 0; probed < kCapacity / 2; ++probed) {
             const uint16_t val = _values[slot];
             if (val == kNotFound)   return kNotFound;  // empty slot → miss
             if (_keys[slot] == key) return val;         // hit
             slot = (slot + 1) & kMask;
         }
+        return kNotFound;
     }
 
     // ── Convenience: lookup from raw 8-byte ticker pointer ────────────────
     [[nodiscard]] inline uint16_t lookup(const void* ticker) const noexcept {
+        if (!ticker) return kNotFound;
         return lookup(detail::load_ticker_key(ticker));
     }
 
@@ -257,6 +260,7 @@ namespace itch {
     const SymbolTable& symbols,
     TickMsg&          out) noexcept
 {
+    if (!raw) [[unlikely]] return false;
     // ── Minimum length check (common header = 11 bytes) ──────────────────
     if (len < 11) [[unlikely]] return false;
 
@@ -271,6 +275,7 @@ namespace itch {
     //  Bytes 5-10: timestamp (48-bit nanoseconds since midnight)
     //
     const uint64_t timestamp = detail::be_timestamp48(raw + 5);
+    if (timestamp >= 86'400'000'000'000ULL) [[unlikely]] return false;
 
     // Zero the output struct in one shot (64 bytes, one cache line)
     std::memset(&out, 0, sizeof(TickMsg));
@@ -303,6 +308,9 @@ namespace itch {
         // Resolve symbol from the 8-byte stock ticker at offset 24
         const uint16_t sym_idx = symbols.lookup(raw + 24);
         if (sym_idx == SymbolTable::kNotFound) [[unlikely]] return false;
+        if (detail::be64(raw + 11) == 0 || detail::be32(raw + 20) == 0 ||
+            detail::be32(raw + 32) == 0 ||
+            (raw[19] != 'B' && raw[19] != 'S')) [[unlikely]] return false;
 
         out.symbol_idx = sym_idx;
         out.order_ref  = detail::be64(raw + 11);
@@ -328,6 +336,8 @@ namespace itch {
 
         // No stock field — use Stock Locate as symbol_idx
         out.symbol_idx = detail::be16(raw + 1);
+        if (out.symbol_idx >= Config::kSymbols || detail::be64(raw + 11) == 0 ||
+            detail::be32(raw + 19) == 0) [[unlikely]] return false;
         out.order_ref  = detail::be64(raw + 11);
         out.qty        = static_cast<int64_t>(detail::be32(raw + 19));
         out.match_num  = detail::be64(raw + 23);
@@ -352,6 +362,9 @@ namespace itch {
         if (len < itch::kLenOrderExecPrice) [[unlikely]] return false;
 
         out.symbol_idx = detail::be16(raw + 1);
+        if (out.symbol_idx >= Config::kSymbols || detail::be64(raw + 11) == 0 ||
+            detail::be32(raw + 19) == 0 || detail::be32(raw + 32) == 0 ||
+            (raw[31] != 'Y' && raw[31] != 'N')) [[unlikely]] return false;
         out.order_ref  = detail::be64(raw + 11);
         out.qty        = static_cast<int64_t>(detail::be32(raw + 19));
         out.match_num  = detail::be64(raw + 23);
@@ -375,6 +388,8 @@ namespace itch {
         if (len < itch::kLenOrderCancel) [[unlikely]] return false;
 
         out.symbol_idx = detail::be16(raw + 1);
+        if (out.symbol_idx >= Config::kSymbols || detail::be64(raw + 11) == 0 ||
+            detail::be32(raw + 19) == 0) [[unlikely]] return false;
         out.order_ref  = detail::be64(raw + 11);
         out.qty        = static_cast<int64_t>(detail::be32(raw + 19));
         return true;
@@ -393,6 +408,8 @@ namespace itch {
         if (len < itch::kLenOrderDelete) [[unlikely]] return false;
 
         out.symbol_idx = detail::be16(raw + 1);
+        if (out.symbol_idx >= Config::kSymbols || detail::be64(raw + 11) == 0)
+            [[unlikely]] return false;
         out.order_ref  = detail::be64(raw + 11);
         return true;
     }
@@ -416,6 +433,11 @@ namespace itch {
         if (len < itch::kLenOrderReplace) [[unlikely]] return false;
 
         out.symbol_idx = detail::be16(raw + 1);
+        if (out.symbol_idx >= Config::kSymbols || detail::be64(raw + 11) == 0 ||
+            detail::be64(raw + 19) == 0 ||
+            detail::be64(raw + 11) == detail::be64(raw + 19) ||
+            detail::be32(raw + 27) == 0 || detail::be32(raw + 31) == 0)
+            [[unlikely]] return false;
         out.order_ref  = detail::be64(raw + 11);  // original ref
         out.match_num  = detail::be64(raw + 19);  // new ref (packed here)
         out.qty        = static_cast<int64_t>(detail::be32(raw + 27));
@@ -443,6 +465,8 @@ namespace itch {
         // Resolve symbol from the 8-byte stock ticker at offset 24
         const uint16_t sym_idx = symbols.lookup(raw + 24);
         if (sym_idx == SymbolTable::kNotFound) [[unlikely]] return false;
+        if (detail::be32(raw + 20) == 0 || detail::be32(raw + 32) == 0 ||
+            (raw[19] != 'B' && raw[19] != 'S')) [[unlikely]] return false;
 
         out.symbol_idx = sym_idx;
         out.order_ref  = detail::be64(raw + 11);

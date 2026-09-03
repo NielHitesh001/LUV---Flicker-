@@ -83,7 +83,13 @@ void test_lob_reconstruction(luv::Arena& arena) {
     assert(arena.level(sym, 1, 0).total_qty == 70);
     assert(arena.level(sym, 1, 0).orders[0].order_id == 4);
 
+    lob.process(tick('A', sym, 5, 10, px102, 0));
+    arena.level(sym, 1, 0).orders[0].flags = 0;
+    lob.process(tick('D', sym, 5, 0));
+    assert(lob.active_order_count() == 1);
+
     std::printf("  [OK] add/execute/cancel/delete/replace path\n");
+    std::printf("  [OK] corrupt slot location rejected without dereference\n");
 }
 
 void test_consumer_and_features() {

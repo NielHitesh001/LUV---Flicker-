@@ -45,15 +45,21 @@ Network (Nasdaq ITCH feed)
 
 ## Thread Safety Model
 
-**Single-threaded event loop design** with optional multi-consumer read access:
+**Single-threaded event loop design**:
 
 1. **ITCH decoder thread** (writer): sole mutator of the LOB
-2. **LOB** (RwLock): readers = data consumers (strategy execution, reporting); writer = ITCH decoder
+2. **LOB**: the ITCH decoder is the sole caller that mutates or processes the book. Query accessors are read-only but must not run concurrently with mutation unless the application supplies synchronization.
 3. **Execution engine** (single-threaded): enqueued from LOB mutations, transmits orders
 4. **Telemetry** (lock-free): ring buffer; no blocking on critical path
 5. **Arena allocator**: pre-allocated; all allocations must fit or the system fails fast (no heap fragmentation)
 
 **No unbounded heap allocations** on the critical path. All data structures use the arena allocator.
+
+The tick and telemetry queues are strict SPSC rings: exactly one producer may
+claim/commit and exactly one consumer may peek/consume each ring. Build with
+`-DLUV_REQUIRE_MLOCK=ON` for production deployments where failure to lock the
+infrastructure arena into RAM must abort startup; the default is best-effort
+locking for simulation environments.
 
 ## Build
 

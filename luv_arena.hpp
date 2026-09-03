@@ -134,7 +134,7 @@ struct alignas(kCacheLine) TickMsg {
     int64_t  qty         = 0;
     uint64_t order_ref   = 0;
     uint64_t match_num   = 0;
-    uint8_t  _pad[16];         // reserved for future fields
+    uint8_t  _pad[16]{};       // reserved for future fields
 };
 static_assert(sizeof(TickMsg) == 64, "TickMsg must be one cache line");
 
@@ -164,7 +164,7 @@ struct alignas(16) SignalOutput {
     int8_t   direction     = 0;    // -1 short, 0 flat, +1 long
     uint8_t  model_id      = 0;    // which model produced this signal
     uint8_t  stale_count   = 0;    // ticks since last refresh
-    uint8_t  _pad[5];
+    uint8_t  _pad[5]{};
 };
 static_assert(sizeof(SignalOutput) == 16);
 
@@ -179,7 +179,7 @@ struct alignas(kCacheLine) ActiveOrder {
     uint32_t symbol_idx   = 0;
     uint8_t  side         = 0;    // 0 = bid, 1 = ask
     uint8_t  state        = 0;    // 0=pending, 1=live, 2=partial, 3=done
-    uint8_t  _pad[18];
+    uint8_t  _pad[18]{};
 };
 static_assert(sizeof(ActiveOrder) == 64);
 
@@ -192,14 +192,14 @@ struct RiskState {
     uint32_t order_count      = 0;
     uint32_t reject_count     = 0;
     uint8_t  halted           = 0;    // non-zero = trading halted
-    uint8_t  _pad[79];
+    uint8_t  _pad[79]{};
 };
 static_assert(sizeof(RiskState) == 128);
 
 struct SymbolExecState {
     ActiveOrder orders[Config::kMaxActiveOrders];  // 64 × 64 = 4096 bytes
     RiskState   risk;                              // 128 bytes
-    uint8_t     _pad[128];                         // align next symbol to page
+    uint8_t     _pad[128]{};                       // align next symbol to page
 };
 static_assert(sizeof(SymbolExecState) == (4096 + 128 + 128));
 
@@ -217,7 +217,7 @@ struct alignas(kCacheLine) TelemSnapshot {
     float    inference_us    = 0.f; // last inference latency
     float    risk_ns         = 0.f; // last risk check latency
     uint8_t  halted          = 0;
-    uint8_t  _pad[55];
+    uint8_t  _pad[55]{};
 };
 static_assert(sizeof(TelemSnapshot) == 128);
 
@@ -227,6 +227,8 @@ static_assert(sizeof(TelemSnapshot) == 128);
 // ─────────────────────────────────────────────────────────────────────────────
 template <typename T, uint32_t Capacity>
 struct alignas(kCacheLine) SPSCRing {
+    // Exactly one producer may call try_claim/commit and one consumer may
+    // call try_peek/consume; violating this contract is a data race.
     static_assert((Capacity & (Capacity - 1)) == 0, "Capacity must be power of two");
     static constexpr uint32_t kMask = Capacity - 1;
 
@@ -365,10 +367,15 @@ public:
         ::madvise(mem, slab_sizes::kInfraTotal, MADV_HUGEPAGE);
 #endif
 
-        // Lock infrastructure region into physical RAM
-        // Failure is non-fatal in simulation mode; fatal in production
+        // Lock infrastructure region into physical RAM. Define
+        // LUV_REQUIRE_MLOCK for deployments requiring deterministic residency.
         if (::mlock(mem, slab_sizes::kInfraTotal) != 0) {
+    #ifdef LUV_REQUIRE_MLOCK
+            ::munmap(mem, total);
+            return false;
+    #else
             _mlocked = false;  // log warning in production
+    #endif
         } else {
             _mlocked = true;
         }
