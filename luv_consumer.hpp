@@ -10,6 +10,7 @@
 // ╚══════════════════════════════════════════════════════════════════════════╝
 
 #include <atomic>
+#include <array>
 #include <cstdint>
 
 #include "luv_arena.hpp"
@@ -18,6 +19,46 @@
 #include "luv_ai.hpp"
 
 namespace luv {
+
+// A self-contained SPSC queue for small control-plane payloads such as
+// outbound packets.  Arena-backed rings remain preferable for the large tick
+// and telemetry slabs; this variant keeps a bounded packet queue owned by the
+// engine without introducing heap allocation on its hot path.
+template <typename T, uint32_t Capacity>
+class alignas(kCacheLine) StaticSpscQueue {
+public:
+    static_assert((Capacity & (Capacity - 1)) == 0,
+                  "Capacity must be a power of two");
+
+    [[nodiscard]] bool try_push(const T& value) noexcept {
+        const uint64_t head = _head.load(std::memory_order_relaxed);
+        if (head - _tail.load(std::memory_order_acquire) >= Capacity)
+            return false;
+        _slots[head & kMask] = value;
+        _head.store(head + 1, std::memory_order_release);
+        return true;
+    }
+
+    [[nodiscard]] bool try_pop(T& value) noexcept {
+        const uint64_t tail = _tail.load(std::memory_order_relaxed);
+        if (_head.load(std::memory_order_acquire) == tail)
+            return false;
+        value = _slots[tail & kMask];
+        _tail.store(tail + 1, std::memory_order_release);
+        return true;
+    }
+
+    [[nodiscard]] bool empty() const noexcept {
+        return _head.load(std::memory_order_acquire) ==
+               _tail.load(std::memory_order_acquire);
+    }
+
+private:
+    static constexpr uint32_t kMask = Capacity - 1;
+    alignas(kCacheLine) std::atomic<uint64_t> _head{0};
+    alignas(kCacheLine) std::atomic<uint64_t> _tail{0};
+    std::array<T, Capacity> _slots{};
+};
 
 class Consumer {
 public:
