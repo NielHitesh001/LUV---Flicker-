@@ -80,6 +80,18 @@ void test_branchless_risk() {
     assert(decision.pass == 0);
     assert((decision.reject_mask & luv::exec::kRejectHalted) != 0);
 
+    intent = make_intent(now);
+    intent.symbol_idx = luv::Config::kSymbols;
+    decision = risk.evaluate(intent);
+    assert(decision.pass == 0);
+    assert((decision.reject_mask & luv::exec::kRejectInvalidSymbol) != 0);
+
+    intent = make_intent(now);
+    intent.price = 0;
+    decision = risk.evaluate(intent);
+    assert(decision.pass == 0);
+    assert((decision.reject_mask & luv::exec::kRejectPrice) != 0);
+
     std::printf("  [OK] pass, fat-finger, position, stale-alpha, halt masks\n");
 }
 
@@ -129,6 +141,17 @@ void test_ouch_template_and_gateway() {
     assert(rejected.pass == 0);
     assert(rejected_packet.len == 0);
     assert(arena.exec_states[3].risk.reject_count == 1);
+
+    auto invalid = intent;
+    invalid.symbol_idx = luv::Config::kSymbols;
+    const auto invalid_decision = gateway.try_build(invalid, rejected_packet);
+    assert(invalid_decision.pass == 0);
+    assert((invalid_decision.reject_mask & luv::exec::kRejectInvalidSymbol) != 0);
+
+    arena.exec_states[3].risk.order_count = luv::Config::kMaxActiveOrders;
+    const auto capacity_decision = gateway.try_build(intent, rejected_packet);
+    assert(capacity_decision.pass == 0);
+    assert((capacity_decision.reject_mask & luv::exec::kRejectOrderCapacity) != 0);
 
     std::printf("  [OK] fixed offsets patched and rejects suppress packet len\n");
 }

@@ -8,6 +8,7 @@
 #include <cerrno>
 #include <cstring>
 #include <cstdint>
+#include <ctime>
 #include <cstdio>
 #include <cstdlib>
 #include <thread>
@@ -51,6 +52,13 @@ void cpu_relax() noexcept {
 #if defined(__x86_64__) || defined(__i386__)
     __builtin_ia32_pause();
 #endif
+}
+
+[[nodiscard]] uint64_t monotonic_now_ns() noexcept {
+    timespec ts {};
+    (void)::clock_gettime(CLOCK_MONOTONIC, &ts);
+    return static_cast<uint64_t>(ts.tv_sec) * 1'000'000'000ULL +
+           static_cast<uint64_t>(ts.tv_nsec);
 }
 
 void egress_loop(luv::StaticSpscQueue<luv::OutboundPacket, kPacketQueueCapacity>& queue,
@@ -108,7 +116,9 @@ int main(int argc, char** argv) {
     luv::Consumer consumer;
     luv::ExecutionGateway execution;
     if (!consumer.init(arena) || !execution.init(arena)) return 1;
-    execution.risk().set_limits(0, {1'000, 100'000, 1'000'000'000});
+    for (uint16_t symbol = 0; symbol < luv::Config::kSymbols; ++symbol) {
+        execution.risk().set_limits(symbol, {1'000, 100'000, 1'000'000'000});
+    }
 
     luv::AIEngine ai;
     if (cfg.model_path) {
@@ -143,7 +153,6 @@ int main(int argc, char** argv) {
         }
         const uint16_t symbol = tick->symbol_idx;
         const int64_t price = tick->price;
-        const uint64_t timestamp = tick->timestamp;
         (void)consumer.process_one();
 
         if (!cfg.model_path) continue;
@@ -154,8 +163,11 @@ int main(int argc, char** argv) {
         intent.side = signal.direction > 0 ? luv::exec::kBuy : luv::exec::kSell;
         intent.qty = 1;
         intent.price = price;
-        intent.alpha_timestamp_ns = timestamp;
-        intent.now_ns = timestamp;
+        // Feed timestamps and host clocks are different domains.  Timestamp
+        // alpha at evaluation so the stale-alpha guard measures real elapsed
+        // strategy time rather than comparing an exchange value to itself.
+        intent.alpha_timestamp_ns = monotonic_now_ns();
+        intent.now_ns = monotonic_now_ns();
         intent.client_order_id = client_order_id++;
         luv::OutboundPacket packet{};
         if (execution.try_build(intent, packet).pass) {

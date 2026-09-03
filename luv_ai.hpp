@@ -20,7 +20,8 @@
 
 #include "luv_arena.hpp"
 
-#if defined(__unix__) || defined(__APPLE__)
+#if defined(LUV_ENABLE_DYNAMIC_MODEL_LOADING) && \
+    (defined(__unix__) || defined(__APPLE__))
 #include <dlfcn.h>
 #endif
 
@@ -135,7 +136,8 @@ public:
         const char* path,
         const char* predict_symbol = "luv_treelite_predict") noexcept
     {
-#if defined(__unix__) || defined(__APPLE__)
+#if defined(LUV_ENABLE_DYNAMIC_MODEL_LOADING) && \
+    (defined(__unix__) || defined(__APPLE__))
         if (!_arena || !path || !predict_symbol) return false;
 
         if (!map_artifact_bytes(path)) return false;
@@ -317,7 +319,8 @@ private:
     }
 
     void close_library() noexcept {
-#if defined(__unix__) || defined(__APPLE__)
+#if defined(LUV_ENABLE_DYNAMIC_MODEL_LOADING) && \
+    (defined(__unix__) || defined(__APPLE__))
         if (_library) {
             ::dlclose(_library);
             _library = nullptr;
@@ -337,7 +340,8 @@ private:
     float _last_inference_us = 0.0f;
     uint64_t _inference_count = 0;
 
-#if defined(__unix__) || defined(__APPLE__)
+#if defined(LUV_ENABLE_DYNAMIC_MODEL_LOADING) && \
+    (defined(__unix__) || defined(__APPLE__))
     void* _library = nullptr;
 #endif
 };
